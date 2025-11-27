@@ -1,0 +1,188 @@
+@page "/tasks"
+@using TaskManager.Models
+@using TaskManager.Services
+@inject ITaskService TaskService
+@inject ISessionService SessionService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Mis Tareas</PageTitle>
+
+@if (SessionService.CurrentUser == null)
+{
+    <div class="alert alert-warning">
+        Debes <a href="/login">iniciar sesión</a> para ver tus tareas.
+    </div>
+}
+else
+{
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Mis Tareas - @SessionService.CurrentUser.Name</h2>
+            <div>
+                <button class="btn btn-danger me-2" @onclick="Logout">Cerrar Sesión</button>
+                <a href="/tasks/create" class="btn btn-primary">+ Nueva Tarea</a>
+            </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <label class="form-label">Filtrar por estado:</label>
+                        <select class="form-select" @onchange="OnFilterChange">
+                            <option value="">Todas</option>
+                           <option value="@TaskItemStatus.Pendiente">Pendiente</option>
+                    <option value="@TaskItemStatus.EnProgreso">En Progreso</option>
+<option value="@TaskItemStatus.Completada">Completada</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Cargando...</span>
+                </div>
+            </div>
+        }
+        else if (tasks == null || tasks.Count == 0)
+        {
+            <div class="alert alert-info">
+                No tienes tareas. ¡Crea tu primera tarea!
+            </div>
+        }
+        else
+        {
+            <div class="row">
+                @foreach (var task in tasks)
+                {
+                    <div class="col-md-6 mb-3">
+                        <div class="card @GetStatusClass(task.Status)">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <h5 class="card-title">@task.Title</h5>
+                                    <span class="badge @GetStatusBadgeClass(task.Status)">
+                                        @GetStatusText(task.Status)
+                                    </span>
+                                </div>
+                                <p class="card-text">@task.Description</p>
+                                <p class="text-muted small">
+                                    <i class="bi bi-calendar"></i> 
+                                    Vence: @task.DueDate.ToString("dd/MM/yyyy")
+                                </p>
+                                <div class="d-flex gap-2">
+                                    <a href="/tasks/edit/@task.Id" class="btn btn-sm btn-warning">Editar</a>
+                                    <button class="btn btn-sm btn-danger" @onclick="() => DeleteTask(task.Id)">
+                                        Eliminar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<TaskItem>? tasks;
+    private bool isLoading = true;
+   private TaskItemStatus? filterStatus = null;
+
+   protected override async Task OnInitializedAsync()
+{
+    Console.WriteLine("=== TASKS OnInitializedAsync ===");
+    Console.WriteLine($"CurrentUser: {SessionService.CurrentUser?.Name ?? "NULL"}");
+    Console.WriteLine($"IsLoggedIn: {SessionService.IsLoggedIn}");
+
+    if (SessionService.CurrentUser == null)
+    {
+        Console.WriteLine("Redirigiendo a /login porque CurrentUser es null");
+        Navigation.NavigateTo("/login");
+        return;
+    }
+
+    Console.WriteLine("Usuario válido, cargando tareas...");
+    await LoadTasks();
+    Console.WriteLine("Tareas cargadas");
+}
+    private async Task LoadTasks()
+    {
+        isLoading = true;
+        if (SessionService.CurrentUser != null)
+        {
+            tasks = await TaskService.GetTasksByUserIdAndStatusAsync(
+                SessionService.CurrentUser.Id, 
+                filterStatus
+            );
+        }
+        isLoading = false;
+    }
+
+    private async Task OnFilterChange(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString();
+        
+        if (string.IsNullOrEmpty(value))
+        {
+            filterStatus = null;
+        }
+       else if (Enum.TryParse<TaskItemStatus>(value, out var status))
+        {
+            filterStatus = status;
+        }
+
+        await LoadTasks();
+    }
+
+    private async Task DeleteTask(int taskId)
+    {
+        if (confirm($"¿Estás seguro de eliminar esta tarea?"))
+        {
+            var result = await TaskService.DeleteTaskAsync(taskId);
+            if (result)
+            {
+                await LoadTasks();
+            }
+        }
+    }
+
+    private void Logout()
+    {
+        SessionService.Logout();
+        Navigation.NavigateTo("/login");
+    }
+
+private string GetStatusClass(TaskItemStatus status) => status switch
+{
+    TaskItemStatus.Completada => "border-success",
+    TaskItemStatus.EnProgreso => "border-warning",
+    _ => "border-secondary"
+};
+
+private string GetStatusBadgeClass(TaskItemStatus status) => status switch
+{
+    TaskItemStatus.Completada => "bg-success",
+    TaskItemStatus.EnProgreso => "bg-warning",
+    _ => "bg-secondary"
+};
+
+private string GetStatusText(TaskItemStatus status) => status switch
+{
+    TaskItemStatus.Pendiente => "Pendiente",
+    TaskItemStatus.EnProgreso => "En Progreso",
+    TaskItemStatus.Completada => "Completada",
+    _ => "Desconocido"
+};
+    private bool confirm(string message)
+    {
+        // En producción, usar JS Interop para confirmación
+        return true;
+    }
+}

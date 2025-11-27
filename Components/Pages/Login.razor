@@ -1,0 +1,122 @@
+@page "/login"
+@using TaskManager.Models
+@using TaskManager.Services
+@inject IUserService UserService
+@inject ISessionService SessionService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Iniciar Sesión</PageTitle>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Iniciar Sesión</h3>
+                </div>
+                <div class="card-body">
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger">@errorMessage</div>
+                    }
+
+                    <EditForm Model="@model" OnValidSubmit="@HandleLogin">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="mb-3">
+                            <label class="form-label">Email: *</label>
+                            <InputText @bind-Value="model.Email" class="form-control" type="email" placeholder="tu@email.com" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Contraseña: *</label>
+                            <InputText @bind-Value="model.Password" class="form-control" type="password" placeholder="Tu contraseña" />
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                            @if (isProcessing)
+                            {
+                                <span>Iniciando sesión...</span>
+                            }
+                            else
+                            {
+                                <span>Iniciar Sesión</span>
+                            }
+                        </button>
+                    </EditForm>
+
+                    <div class="mt-3 text-center">
+                        <a href="/register">¿No tienes cuenta? Regístrate</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private LoginModel model = new();
+    private string errorMessage = string.Empty;
+    private bool isProcessing = false;
+
+   private async Task HandleLogin()
+{
+    isProcessing = true;
+    errorMessage = string.Empty;
+
+    try
+    {
+        Console.WriteLine("=== INICIO LOGIN ===");
+        Console.WriteLine($"Email: {model.Email}");
+        Console.WriteLine($"Password length: {model.Password?.Length}");
+
+        // Validación
+        if (string.IsNullOrWhiteSpace(model.Email) || string.IsNullOrWhiteSpace(model.Password))
+        {
+            errorMessage = "Email y contraseña son obligatorios";
+            Console.WriteLine("ERROR: Campos vacíos");
+            return;
+        }
+
+        Console.WriteLine("Llamando a LoginUserAsync...");
+        var user = await UserService.LoginUserAsync(model.Email, model.Password);
+
+        Console.WriteLine($"Resultado: {(user == null ? "NULL" : $"Usuario: {user.Name}")}");
+
+        if (user == null)
+        {
+            errorMessage = "Email o contraseña incorrectos";
+            Console.WriteLine("ERROR: Usuario null");
+            return;
+        }
+
+        Console.WriteLine($"Guardando sesión para: {user.Name}");
+        SessionService.Login(user);
+        
+        Console.WriteLine($"Usuario en sesión: {SessionService.CurrentUser?.Name}");
+        Console.WriteLine($"IsLoggedIn: {SessionService.IsLoggedIn}");
+
+        Console.WriteLine("Navegando a /tasks...");
+        Navigation.NavigateTo("/tasks");
+        Console.WriteLine("Navegación completada");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"EXCEPTION: {ex.Message}");
+        Console.WriteLine($"STACK: {ex.StackTrace}");
+        errorMessage = $"Error al iniciar sesión: {ex.Message}";
+    }
+    finally
+    {
+        isProcessing = false;
+        Console.WriteLine("=== FIN LOGIN ===");
+    }
+}
+    public class LoginModel
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+}

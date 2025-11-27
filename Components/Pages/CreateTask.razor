@@ -1,0 +1,140 @@
+@page "/tasks/create"
+@using TaskManager.Models
+@using TaskManager.Services
+@inject ITaskService TaskService
+@inject ISessionService SessionService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Nueva Tarea</PageTitle>
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Crear Nueva Tarea</h3>
+                </div>
+                <div class="card-body">
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger">@errorMessage</div>
+                    }
+
+                    <EditForm Model="@model" OnValidSubmit="@HandleSubmit">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="mb-3">
+                            <label class="form-label">Título: *</label>
+                            <InputText @bind-Value="model.Title" class="form-control" placeholder="Título de la tarea" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Descripción: *</label>
+                            <InputTextArea @bind-Value="model.Description" class="form-control" rows="4" placeholder="Describe la tarea..." />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Fecha de Vencimiento: *</label>
+                            <InputDate @bind-Value="model.DueDate" class="form-control" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Estado:</label>
+                           <InputSelect @bind-Value="model.Status" class="form-select">
+                                <option value="@TaskItemStatus.Pendiente">Pendiente</option>
+                                <option value="@TaskItemStatus.EnProgreso">En Progreso</option>
+                                <option value="@TaskItemStatus.Completada">Completada</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary" disabled="@isProcessing">
+                                @if (isProcessing)
+                                {
+                                    <span>Guardando...</span>
+                                }
+                                else
+                                {
+                                    <span>Crear Tarea</span>
+                                }
+                            </button>
+                            <a href="/tasks" class="btn btn-secondary">Cancelar</a>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private TaskModel model = new() { DueDate = DateTime.Today.AddDays(1) };
+    private string errorMessage = string.Empty;
+    private bool isProcessing = false;
+
+    protected override void OnInitialized()
+    {
+        if (SessionService.CurrentUser == null)
+        {
+            Navigation.NavigateTo("/login");
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        isProcessing = true;
+        errorMessage = string.Empty;
+
+        try
+        {
+            // Validación
+            if (string.IsNullOrWhiteSpace(model.Title))
+            {
+                errorMessage = "El título es obligatorio";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(model.Description))
+            {
+                errorMessage = "La descripción es obligatoria";
+                return;
+            }
+
+            if (model.DueDate < DateTime.Today)
+            {
+                errorMessage = "La fecha de vencimiento no puede ser anterior a hoy";
+                return;
+            }
+
+            var task = new TaskItem
+            {
+                Title = model.Title,
+                Description = model.Description,
+                DueDate = model.DueDate,
+                Status = model.Status,
+                UserId = SessionService.CurrentUser!.Id
+            };
+
+            await TaskService.CreateTaskAsync(task);
+            Navigation.NavigateTo("/tasks");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al crear la tarea: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+   public class TaskModel
+{
+    public string Title { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public DateTime DueDate { get; set; }
+    public TaskItemStatus Status { get; set; } = TaskItemStatus.Pendiente;  // <- Cambiar aquí
+}
+}
