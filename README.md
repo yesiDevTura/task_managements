@@ -26,5 +26,5 @@ Aplicación web desarrollada con Blazor Server para la gestión de tareas con au
 
 1. Clonar el repositorio:
 ```bash
-git clone [<tu-repo-url>](https://github.com/yesiDevTura/task_managements.git)
+git clone https://github.com/yesiDevTura/task_managements.git
 cd crud-tech
